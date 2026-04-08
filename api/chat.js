@@ -11,24 +11,27 @@ async function fetchTXT(filename) {
   return await res.text();
 }
 
+// Cache dos arquivos
 const cache = {};
 async function getData(filename) {
   if (!cache[filename]) cache[filename] = await fetchTXT(filename);
   return cache[filename];
 }
 
+// Detecta quais arquivos são necessários para a pergunta
 function detectarArquivos(pergunta) {
   const p = pergunta.toLowerCase();
   const arquivos = [];
 
   const usaFilial = p.includes("filial") || p.includes("loja") || p.includes("unidade") || p.includes("ranking") || p.includes("resumo") || p.includes("geral");
   const usaCliente = p.includes("cliente") || p.includes("comprador") || p.includes("churn") || p.includes("top") || p.includes("concentra");
-  const usaCategoria = p.includes("categor") || p.includes("produto") || p.includes("mix") || p.includes("item") || p.includes("segment");
+  const usaCategoria = p.includes("categor") || p.includes("produto") || p.includes("mix") || p.includes("item") || p.includes("segmento");
 
   if (usaFilial || (!usaCliente && !usaCategoria)) arquivos.push("filial.txt");
   if (usaCliente) arquivos.push("cliente.txt");
-  if (usaCategoria) arquivos.push("categoria.txt");
+  if (usaCategoria || p.includes("segment")) arquivos.push("categoria.txt");
 
+  // Se não detectou nada específico, carrega filial e categoria (mais leves)
   if (arquivos.length === 0) arquivos.push("filial.txt", "categoria.txt");
 
   return arquivos;
@@ -41,7 +44,7 @@ Base de dados disponível:
 2. cliente.txt — Campos: CODFILIAL, SEGMENTO, FATURAMENTO, MARGEM, CLIENTE, Mes
 3. categoria.txt — Campos: CODFILIAL, SEGMENTO, CATEGORIA, CATEGORIA2, FATURAMENTO, MARGEM, Mes
 
-Períodos: Janeiro, Fevereiro, Março, Abril
+Períodos disponíveis: Janeiro, Fevereiro, Março e Abril de 2026. IMPORTANTE: sempre use o ano 2026 ao mencionar datas nas respostas. Nunca use 2024 ou 2025.
 Segmentos: FLV Nacionais, FLV Importados, Segmento Orgânicos, Alimentos Industrializados
 Chave de cruzamento: CODFILIAL + Mes
 
@@ -63,14 +66,20 @@ Menu de análises disponíveis:
 - CRUZAMENTOS: clientes x categorias, filiais x segmentos, visão 360°
 - PERÍODOS: mês a mês, acumulado Jan-Abr, melhor/pior mês, tendências
 
+Regras de exibição de dados:
+- Sempre limite rankings de clientes ao TOP 15 por faturamento
+- Sempre limite rankings de categorias ao TOP 15 por faturamento
+- Para filiais mostre todas (são poucas)
+- Isso garante melhor visualização e leitura dos relatórios
+
 Formato de resposta:
 1. Período analisado
 2. Insight principal
-3. Tabela com dados
+3. Tabela com dados (máximo 15 linhas para clientes e categorias)
 4. Observações
 5. Sugestão de próxima análise
 
-Os dados necessários estão disponíveis abaixo.`;
+Os dados necessários para responder esta pergunta estão disponíveis abaixo.`;
 
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 
@@ -93,12 +102,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Limita histórico às últimas 6 mensagens para não estourar tokens
-    const historico = messages.slice(-6);
-
-    const ultimaMensagem = historico[historico.length - 1]?.content || "";
+    // Detecta quais arquivos carregar baseado na última pergunta
+    const ultimaMensagem = messages[messages.length - 1]?.content || "";
     const arquivosNecessarios = detectarArquivos(ultimaMensagem);
 
+    // Carrega só os arquivos necessários em paralelo
     const dadosCarregados = await Promise.all(
       arquivosNecessarios.map(async (filename) => {
         const conteudo = await getData(filename);
@@ -112,7 +120,7 @@ export default async function handler(req, res) {
       model: "claude-sonnet-4-20250514",
       max_tokens: 4096,
       system: systemWithData,
-      messages: historico,
+      messages: messages,
     });
 
     const text = response.content
