@@ -11,27 +11,24 @@ async function fetchTXT(filename) {
   return await res.text();
 }
 
-// Cache dos arquivos
 const cache = {};
 async function getData(filename) {
   if (!cache[filename]) cache[filename] = await fetchTXT(filename);
   return cache[filename];
 }
 
-// Detecta quais arquivos são necessários para a pergunta
 function detectarArquivos(pergunta) {
   const p = pergunta.toLowerCase();
   const arquivos = [];
 
   const usaFilial = p.includes("filial") || p.includes("loja") || p.includes("unidade") || p.includes("ranking") || p.includes("resumo") || p.includes("geral");
   const usaCliente = p.includes("cliente") || p.includes("comprador") || p.includes("churn") || p.includes("top") || p.includes("concentra");
-  const usaCategoria = p.includes("categor") || p.includes("produto") || p.includes("mix") || p.includes("item") || p.includes("segmento");
+  const usaCategoria = p.includes("categor") || p.includes("produto") || p.includes("mix") || p.includes("item") || p.includes("segment");
 
   if (usaFilial || (!usaCliente && !usaCategoria)) arquivos.push("filial.txt");
   if (usaCliente) arquivos.push("cliente.txt");
-  if (usaCategoria || p.includes("segment")) arquivos.push("categoria.txt");
+  if (usaCategoria) arquivos.push("categoria.txt");
 
-  // Se não detectou nada específico, carrega filial e categoria (mais leves)
   if (arquivos.length === 0) arquivos.push("filial.txt", "categoria.txt");
 
   return arquivos;
@@ -73,7 +70,7 @@ Formato de resposta:
 4. Observações
 5. Sugestão de próxima análise
 
-Os dados necessários para responder esta pergunta estão disponíveis abaixo.`;
+Os dados necessários estão disponíveis abaixo.`;
 
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 
@@ -96,11 +93,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Detecta quais arquivos carregar baseado na última pergunta
-    const ultimaMensagem = messages[messages.length - 1]?.content || "";
+    // Limita histórico às últimas 6 mensagens para não estourar tokens
+    const historico = messages.slice(-6);
+
+    const ultimaMensagem = historico[historico.length - 1]?.content || "";
     const arquivosNecessarios = detectarArquivos(ultimaMensagem);
 
-    // Carrega só os arquivos necessários em paralelo
     const dadosCarregados = await Promise.all(
       arquivosNecessarios.map(async (filename) => {
         const conteudo = await getData(filename);
@@ -114,7 +112,7 @@ export default async function handler(req, res) {
       model: "claude-sonnet-4-20250514",
       max_tokens: 4096,
       system: systemWithData,
-      messages: messages,
+      messages: historico,
     });
 
     const text = response.content
