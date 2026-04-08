@@ -11,24 +11,30 @@ async function fetchTXT(filename) {
   return await res.text();
 }
 
-let dataContext = null;
-async function getDataContext() {
-  if (!dataContext) {
-    const [filial, categoria, cliente] = await Promise.all([
-      fetchTXT("filial.txt"),
-      fetchTXT("categoria.txt"),
-      fetchTXT("cliente.txt"),
-    ]);
-    dataContext = `=== DADOS: filial.txt (Desempenho por Filial) ===
-${filial}
+// Cache dos arquivos
+const cache = {};
+async function getData(filename) {
+  if (!cache[filename]) cache[filename] = await fetchTXT(filename);
+  return cache[filename];
+}
 
-=== DADOS: categoria.txt (Desempenho por Categoria) ===
-${categoria}
+// Detecta quais arquivos são necessários para a pergunta
+function detectarArquivos(pergunta) {
+  const p = pergunta.toLowerCase();
+  const arquivos = [];
 
-=== DADOS: cliente.txt (Desempenho por Cliente) ===
-${cliente}`;
-  }
-  return dataContext;
+  const usaFilial = p.includes("filial") || p.includes("loja") || p.includes("unidade") || p.includes("ranking") || p.includes("resumo") || p.includes("geral");
+  const usaCliente = p.includes("cliente") || p.includes("comprador") || p.includes("churn") || p.includes("top") || p.includes("concentra");
+  const usaCategoria = p.includes("categor") || p.includes("produto") || p.includes("mix") || p.includes("item") || p.includes("segmento");
+
+  if (usaFilial || (!usaCliente && !usaCategoria)) arquivos.push("filial.txt");
+  if (usaCliente) arquivos.push("cliente.txt");
+  if (usaCategoria || p.includes("segment")) arquivos.push("categoria.txt");
+
+  // Se não detectou nada específico, carrega filial e categoria (mais leves)
+  if (arquivos.length === 0) arquivos.push("filial.txt", "categoria.txt");
+
+  return arquivos;
 }
 
 const SYSTEM_PROMPT = `Você é o Executivo Comercial Cantu, um assistente de análise de vendas especializado nos dados comerciais do Grupo Cantu. Sua função é apoiar os diretores da empresa com análises precisas, rankings e cruzamentos de dados de forma clara e executiva.
@@ -67,7 +73,7 @@ Formato de resposta:
 4. Observações
 5. Sugestão de próxima análise
 
-Os dados completos estão disponíveis abaixo.`;
+Os dados necessários para responder esta pergunta estão disponíveis abaixo.`;
 
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 
@@ -90,8 +96,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const dataCtx = await getDataContext();
-    const systemWithData = `${SYSTEM_PROMPT}\n\n${dataCtx}`;
+    // Detecta quais arquivos carregar baseado na última pergunta
+    const ultimaMensagem = messages[messages.length - 1]?.content || "";
+    const arquivosNecessarios = detectarArquivos(ultimaMensagem);
+
+    // Carrega só os arquivos necessários em paralelo
+    const dadosCarregados = await Promise.all(
+      arquivosNecessarios.map(async (filename) => {
+        const conteudo = await getData(filename);
+        return `=== DADOS: ${filename} ===\n${conteudo}`;
+      })
+    );
+
+    const systemWithData = `${SYSTEM_PROMPT}\n\n${dadosCarregados.join("\n\n")}`;
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
