@@ -67,15 +67,15 @@ Menu de análises disponíveis:
 - PERÍODOS: mês a mês, acumulado Jan-Abr, melhor/pior mês, tendências
 
 Regras de exibição de dados:
-- Sempre limite rankings de clientes ao TOP 15 por faturamento
-- Sempre limite rankings de categorias ao TOP 15 por faturamento
+- Sempre limite rankings de clientes ao TOP 12 por faturamento
+- Sempre limite rankings de categorias ao TOP 12 por faturamento
 - Para filiais mostre todas (são poucas)
 - Isso garante melhor visualização e leitura dos relatórios
 
 Formato de resposta:
 1. Período analisado
 2. Insight principal
-3. Tabela com dados (máximo 15 linhas para clientes e categorias)
+3. Tabela com dados (máximo 12 linhas para clientes e categorias)
 4. Observações
 5. Sugestão de próxima análise
 
