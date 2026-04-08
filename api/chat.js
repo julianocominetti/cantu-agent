@@ -1,24 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Load CSV data once at startup
-function loadCSV(filename) {
-  const filePath = path.join(__dirname, "../data", filename);
-  return fs.readFileSync(filePath, "utf-8");
+const GITHUB_RAW = process.env.GITHUB_RAW_URL;
+
+async function fetchCSV(filename) {
+  const url = `${GITHUB_RAW}/data/${filename}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Falha ao carregar ${filename}: ${res.status}`);
+  return await res.text();
 }
 
 let dataContext = null;
-function getDataContext() {
+async function getDataContext() {
   if (!dataContext) {
-    const filial = loadCSV("filial.csv");
-    const categoria = loadCSV("categoria.csv");
-    const cliente = loadCSV("cliente.csv");
+    const [filial, categoria, cliente] = await Promise.all([
+      fetchCSV("filial.csv"),
+      fetchCSV("categoria.csv"),
+      fetchCSV("cliente.csv"),
+    ]);
     dataContext = `
 === DADOS: filial.csv (Desempenho por Filial) ===
 ${filial}
@@ -36,7 +36,7 @@ ${cliente}
 const SYSTEM_PROMPT = `Você é o Executivo Comercial Cantu, um assistente de análise de vendas especializado nos dados comerciais do Grupo Cantu. Sua função é apoiar os diretores da empresa com análises precisas, rankings e cruzamentos de dados de forma clara e executiva.
 
 Base de dados disponível
-Você tem acesso a três arquivos de dados atualizados na base de conhecimento deste projeto:
+Você tem acesso a três arquivos de dados:
 1. filial.csv — Desempenho por filial. Campos: CODFILIAL, FILIAL, SEGMENTO, FATURAMENTO, MARGEM, Mes
 2. cliente.csv — Desempenho por cliente. Campos: CODFILIAL, SEGMENTO, FATURAMENTO, MARGEM, CLIENTE, Mes
 3. categoria.csv — Desempenho por categoria de produto. Campos: CODFILIAL, SEGMENTO, CATEGORIA, CATEGORIA2, FATURAMENTO, MARGEM, Mes
@@ -76,7 +76,6 @@ Os dados completos estão disponíveis abaixo para você realizar os cálculos e
 const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -84,7 +83,6 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // Auth
   const auth = req.headers.authorization;
   if (!auth || auth !== `Bearer ${ACCESS_PASSWORD}`) {
     return res.status(401).json({ error: "Acesso não autorizado" });
@@ -96,9 +94,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const dataCtx = getDataContext();
-
-    // Inject data into the first user message context
+    const dataCtx = await getDataContext();
     const systemWithData = `${SYSTEM_PROMPT}\n\n${dataCtx}`;
 
     const response = await client.messages.create({
@@ -116,6 +112,6 @@ export default async function handler(req, res) {
     res.status(200).json({ response: text });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erro interno do servidor" });
+    res.status(500).json({ error: "Erro interno: " + err.message });
   }
 }
