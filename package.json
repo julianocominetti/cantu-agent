@@ -1,0 +1,12 @@
+{
+  "name": "cantu-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Executivo Comercial Cantu - Agente de análise de vendas",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}
