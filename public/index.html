@@ -58,7 +58,7 @@
     .bubble.bot ul,.bubble.bot ol { padding-left: 20px; margin-bottom: 8px; }
     .bubble.bot li { margin-bottom: 4px; }
     .bubble.bot code { background: var(--cinza); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-    .chart-wrap { background: var(--branco); border: 1px solid var(--borda); border-radius: 12px; padding: 16px; margin: 10px 0; }
+    .chart-wrap { background: var(--branco); border: 1px solid var(--borda); border-radius: 12px; padding: 16px; margin: 10px 0; position: relative; }
     .chart-wrap canvas { max-height: 280px; }
     .msg-actions { display: flex; gap: 8px; margin-top: 8px; }
     .action-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--laranja); background: var(--branco); color: var(--laranja); font-size: 12px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
@@ -214,6 +214,12 @@ function parseTable(tableLines) {
   return { labels, headers, colLabel: headers[ci], data };
 }
 
+function fmtVal(v) {
+  if (Math.abs(v) >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k';
+  return v.toFixed(0);
+}
+
 function renderChart(id, tableData, chartType, title) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -225,6 +231,12 @@ function renderChart(id, tableData, chartType, title) {
     '#bf360c','#004d40'
   ];
 
+  // Always horizontal bar so labels fit
+  const isHoriz = true;
+  // Canvas height based on number of items
+  const h = Math.max(320, tableData.labels.length * 36);
+  el.querySelector('canvas').style.maxHeight = h + 'px';
+
   let cfg;
   if (chartType === 'pie') {
     cfg = {
@@ -234,12 +246,38 @@ function renderChart(id, tableData, chartType, title) {
         datasets: [{ data: tableData.data, backgroundColor: colors.slice(0, tableData.labels.length), borderWidth: 2, borderColor: '#fff' }]
       },
       options: {
-        responsive: true, maintainAspectRatio: true,
+        responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } },
-          title: { display: !!title, text: title, font: { size: 13 }, color: '#00613a' }
+          title: { display: !!title, text: title, font: { size: 13, weight: 'bold' }, color: '#00613a', padding: { bottom: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' ' + ctx.label + ': ' + fmtVal(ctx.raw)
+            }
+          },
+          // Inline labels via custom plugin
+          datalabels: { display: false }
         }
-      }
+      },
+      plugins: [{
+        id: 'pieLabels',
+        afterDatasetsDraw(chart) {
+          const { ctx, data } = chart;
+          const total = data.datasets[0].data.reduce((a,b) => a+b, 0);
+          chart.getDatasetMeta(0).data.forEach((arc, i) => {
+            const val = data.datasets[0].data[i];
+            const pct = ((val/total)*100).toFixed(1) + '%';
+            const { x, y } = arc.tooltipPosition();
+            ctx.save();
+            ctx.font = 'bold 10px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if ((val/total) > 0.04) ctx.fillText(pct, x, y);
+            ctx.restore();
+          });
+        }
+      }]
     };
   } else {
     cfg = {
@@ -255,28 +293,56 @@ function renderChart(id, tableData, chartType, title) {
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: true, indexAxis: tableData.labels.length > 6 ? 'y' : 'x',
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
         plugins: {
           legend: { display: false },
-          title: { display: !!title, text: title, font: { size: 13 }, color: '#00613a' }
+          title: { display: !!title, text: title, font: { size: 13, weight: 'bold' }, color: '#00613a', padding: { bottom: 10 } },
+          tooltip: { callbacks: { label: ctx => ' ' + fmtVal(ctx.raw) } }
         },
         scales: {
-          x: { ticks: { font: { size: 10 } } },
-          y: { ticks: { font: { size: 10 }, callback: v => {
-            if (typeof v === 'number') {
-              if (Math.abs(v) >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
-              if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k';
-            }
-            return v;
-          }}}
+          x: {
+            ticks: { font: { size: 10 }, callback: v => fmtVal(v) },
+            grid: { color: '#f0f0f0' }
+          },
+          y: {
+            ticks: { font: { size: 11 }, crossAlign: 'far' }
+          }
         }
-      }
+      },
+      plugins: [{
+        id: 'barLabels',
+        afterDatasetsDraw(chart) {
+          const { ctx, scales: { x, y } } = chart;
+          chart.getDatasetMeta(0).data.forEach((bar, i) => {
+            const val = chart.data.datasets[0].data[i];
+            const xPos = bar.x + 6;
+            const yPos = bar.y;
+            ctx.save();
+            ctx.font = 'bold 10px Arial';
+            ctx.fillStyle = '#1a2332';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(fmtVal(val), xPos, yPos);
+            ctx.restore();
+          });
+        }
+      }]
     };
   }
   charts[id] = new Chart(el.querySelector('canvas'), cfg);
 }
 
-function gerarPDF(content) {
+function gerarPDF(content, msgBody) {
+  const chartImgs = [];
+  if (msgBody) {
+    msgBody.querySelectorAll('.chart-wrap canvas').forEach(canvas => {
+      try { chartImgs.push(canvas.toDataURL('image/png')); } catch(e) {}
+    });
+  }
+  const chartsHtml = chartImgs.map(src =>
+    '<div style="margin:20px 0;text-align:center;"><img src="' + src + '" style="width:100%;max-width:680px;border-radius:8px;border:1px solid #dde3ea;" /></div>'
+  ).join('');
   const today = new Date();
   // Tenta extrair o ano do conteúdo da análise, senão usa 2026
   const anoMatch = content.match(/20(2[4-9]|3[0-9])/);
@@ -314,6 +380,7 @@ li { margin-bottom: 4px; }
   </div>
 </div>
 <div class="content">${html}</div>
+${chartImgs.length > 0 ? '<div style="padding:0 32px 24px"><h3 style="color:#00613a;font-size:14px;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #e8f5ee;">Gráficos da Análise</h3>' + chartsHtml + '</div>' : ''}
 <div class="rodape">Cantu Atacado · Executivo Comercial IA · Documento Confidencial — Uso Interno</div>
 </body></html>`);
   w.document.close();
@@ -347,10 +414,13 @@ function addMsg(role, content) {
         setTimeout(() => renderChart(cid, td, cType, block.title), 150 + idx * 50);
       }
     });
-    const safeContent = content.replace(/\\/g,'\\\\').replace(/`/g,'\\`');
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-    actions.innerHTML = '<button class="action-btn" onclick="gerarPDF(`' + safeContent + '`)">📄 Gerar PDF executivo</button>';
+    const pdfBtn = document.createElement('button');
+    pdfBtn.className = 'action-btn';
+    pdfBtn.textContent = '📄 Gerar PDF executivo';
+    pdfBtn.onclick = () => gerarPDF(content, body);
+    actions.appendChild(pdfBtn);
     body.appendChild(actions);
   } else {
     bubble.textContent = content;
