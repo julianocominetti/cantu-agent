@@ -475,24 +475,9 @@
     const pwd = document.getElementById('pwd-input').value.trim();
     if (!pwd) return;
     accessPassword = pwd;
-    // Test password via API
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pwd}` },
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'oi' }] })
-    }).then(r => {
-      if (r.ok) {
-        sessionStorage.setItem(PASSWORD_KEY, pwd);
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-      } else {
-        document.getElementById('login-error').style.display = 'block';
-        accessPassword = '';
-      }
-    }).catch(() => {
-      document.getElementById('login-error').textContent = 'Erro de conexão. Tente novamente.';
-      document.getElementById('login-error').style.display = 'block';
-    });
+    sessionStorage.setItem(PASSWORD_KEY, pwd);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
   }
 
   document.getElementById('pwd-input').addEventListener('keydown', e => {
