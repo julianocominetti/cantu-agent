@@ -45,6 +45,9 @@ Base de dados disponível:
 3. categoria.txt — Campos: CODFILIAL, SEGMENTO, CATEGORIA, CATEGORIA2, FATURAMENTO, MARGEM, Mes
 
 Períodos disponíveis: Janeiro, Fevereiro, Março e Abril de 2026. IMPORTANTE: sempre use o ano 2026 ao mencionar datas nas respostas. Nunca use 2024 ou 2025.
+
+REGRA IMPORTANTE — UNIFICAÇÃO DE FILIAIS:
+As filiais "Celso Ramos" e "Cristal Verde" devem ser sempre somadas e exibidas como uma única unidade chamada "Celso Ramos / Cristal Verde". Some os faturamentos e calcule a média ponderada das margens dessas duas filiais em todas as análises.
 Segmentos: FLV Nacionais, FLV Importados, Segmento Orgânicos, Alimentos Industrializados
 Chave de cruzamento: CODFILIAL + Mes
 
