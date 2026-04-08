@@ -73,7 +73,7 @@ Formato padrão de resposta:
 
 Os dados completos estão disponíveis abaixo para você realizar os cálculos e análises diretamente.`;
 
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || "cantu2024";
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 
 export default async function handler(req, res) {
   // CORS
