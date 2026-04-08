@@ -212,7 +212,11 @@ function renderChart(id, data) {
 }
 
 function gerarPDF(content) {
-  const now = new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'});
+  const today = new Date();
+  // Tenta extrair o ano do conteúdo da análise, senão usa 2026
+  const anoMatch = content.match(/20(2[4-9]|3[0-9])/);
+  const ano = anoMatch ? anoMatch[0] : '2026';
+  const now = today.toLocaleDateString('pt-BR', {day:'2-digit',month:'long'}) + ' de ' + ano;
   const html = marked.parse(content);
   const w = window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatorio Executivo Cantu</title>
