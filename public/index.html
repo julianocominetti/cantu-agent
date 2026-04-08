@@ -162,50 +162,118 @@ function parseNum(v) {
   return parseFloat(v.replace(/[^\d.-]/g,'')) || 0;
 }
 
-function extractChart(text) {
-  const lines = text.split('\n').filter(l => l.trim().startsWith('|'));
-  if (lines.length < 3) return null;
-  const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
-  const rows = lines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
+function extractTables(text) {
+  // Split response into blocks and extract each table separately
+  const blocks = [];
+  const lines = text.split('\n');
+  let tableLines = [];
+  let beforeTable = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim().startsWith('|')) {
+      tableLines.push(line);
+    } else {
+      if (tableLines.length >= 3) {
+        // Find context title (last heading before table)
+        let title = '';
+        for (let j = beforeTable.length - 1; j >= 0; j--) {
+          if (beforeTable[j].match(/^#{1,3}\s/)) { title = beforeTable[j].replace(/^#{1,3}\s/, '').trim(); break; }
+        }
+        blocks.push({ title, lines: [...tableLines] });
+      }
+      tableLines = [];
+      beforeTable.push(line);
+    }
+  }
+  if (tableLines.length >= 3) blocks.push({ title: '', lines: tableLines });
+  return blocks;
+}
+
+function detectChartType(title, headers) {
+  const t = (title + ' ' + headers.join(' ')).toLowerCase();
+  if (t.includes('client')) return 'pie';
+  if (t.includes('categ') || t.includes('filial') || t.includes('segmento') || t.includes('ms')) return 'bar';
+  return 'bar';
+}
+
+function parseTable(tableLines) {
+  const headers = tableLines[0].split('|').map(h => h.trim()).filter(Boolean);
+  const rows = tableLines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
   if (rows.length < 2) return null;
-  const labels = rows.map(r => (r[0]||'').substring(0,18));
+  const labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').substring(0,22));
   const numCols = [];
   for (let i = 1; i < headers.length; i++) {
     const vals = rows.map(r => parseNum(r[i]));
     if (vals.some(v => v > 0)) numCols.push(i);
   }
   if (!numCols.length) return null;
-  const colors = ['#00613a','#e8640a','#f5a623','#0066cc'];
-  const datasets = numCols.slice(0,3).map((ci, idx) => ({
-    label: headers[ci],
-    data: rows.map(r => parseNum(r[ci])),
-    backgroundColor: colors[idx] + 'dd',
-    borderColor: colors[idx],
-    borderWidth: 1,
-    borderRadius: 4
-  }));
-  return { labels, datasets };
+  // Use only first numeric column (faturamento)
+  const ci = numCols[0];
+  const data = rows.map(r => parseNum(r[ci]));
+  return { labels, headers, colLabel: headers[ci], data };
 }
 
-function renderChart(id, data) {
+function renderChart(id, tableData, chartType, title) {
   const el = document.getElementById(id);
   if (!el) return;
   if (charts[id]) charts[id].destroy();
-  charts[id] = new Chart(el.querySelector('canvas'), {
-    type: 'bar', data,
-    options: {
-      responsive: true, maintainAspectRatio: true,
-      plugins: { legend: { position: 'top', labels: { font: { size: 12 } } } },
-      scales: {
-        x: { ticks: { font: { size: 11 }, maxRotation: 40 } },
-        y: { ticks: { font: { size: 11 }, callback: v => {
-          if (Math.abs(v) >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
-          if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k';
-          return v;
-        }}}
+
+  const colors = [
+    '#00613a','#e8640a','#f5a623','#0066cc','#9c27b0',
+    '#00838f','#c62828','#2e7d32','#1565c0','#6a1b9a',
+    '#bf360c','#004d40'
+  ];
+
+  let cfg;
+  if (chartType === 'pie') {
+    cfg = {
+      type: 'doughnut',
+      data: {
+        labels: tableData.labels,
+        datasets: [{ data: tableData.data, backgroundColor: colors.slice(0, tableData.labels.length), borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } },
+          title: { display: !!title, text: title, font: { size: 13 }, color: '#00613a' }
+        }
       }
-    }
-  });
+    };
+  } else {
+    cfg = {
+      type: 'bar',
+      data: {
+        labels: tableData.labels,
+        datasets: [{
+          label: tableData.colLabel,
+          data: tableData.data,
+          backgroundColor: colors.slice(0, tableData.labels.length),
+          borderWidth: 0,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, indexAxis: tableData.labels.length > 6 ? 'y' : 'x',
+        plugins: {
+          legend: { display: false },
+          title: { display: !!title, text: title, font: { size: 13 }, color: '#00613a' }
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 } } },
+          y: { ticks: { font: { size: 10 }, callback: v => {
+            if (typeof v === 'number') {
+              if (Math.abs(v) >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
+              if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k';
+            }
+            return v;
+          }}}
+        }
+      }
+    };
+  }
+  charts[id] = new Chart(el.querySelector('canvas'), cfg);
 }
 
 function gerarPDF(content) {
@@ -266,15 +334,19 @@ function addMsg(role, content) {
   if (role === 'bot') {
     bubble.innerHTML = marked.parse(content);
     body.appendChild(bubble);
-    const chartData = extractChart(content);
-    if (chartData && chartData.labels.length >= 2) {
-      const cid = 'c' + Date.now();
-      const cw = document.createElement('div');
-      cw.className = 'chart-wrap'; cw.id = cid;
-      cw.innerHTML = '<canvas></canvas>';
-      body.appendChild(cw);
-      setTimeout(() => renderChart(cid, chartData), 150);
-    }
+    const tables = extractTables(content);
+    tables.forEach((block, idx) => {
+      const td = parseTable(block.lines);
+      if (td && td.labels.length >= 2) {
+        const cid = 'c' + Date.now() + idx;
+        const cw = document.createElement('div');
+        cw.className = 'chart-wrap'; cw.id = cid;
+        cw.innerHTML = '<canvas></canvas>';
+        body.appendChild(cw);
+        const cType = detectChartType(block.title, td.headers);
+        setTimeout(() => renderChart(cid, td, cType, block.title), 150 + idx * 50);
+      }
+    });
     const safeContent = content.replace(/\\/g,'\\\\').replace(/`/g,'\\`');
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
