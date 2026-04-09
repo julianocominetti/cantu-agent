@@ -162,175 +162,125 @@ function parseNum(v) {
   return parseFloat(v.replace(/[^\d.-]/g,'')) || 0;
 }
 
-function extractTables(text) {
-  // Split response into blocks and extract each table separately
-  const blocks = [];
-  const lines = text.split('\n');
-  let tableLines = [];
-  let beforeTable = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.trim().startsWith('|')) {
-      tableLines.push(line);
-    } else {
-      if (tableLines.length >= 3) {
-        // Find context title (last heading before table)
-        let title = '';
-        for (let j = beforeTable.length - 1; j >= 0; j--) {
-          if (beforeTable[j].match(/^#{1,3}\s/)) { title = beforeTable[j].replace(/^#{1,3}\s/, '').trim(); break; }
-        }
-        blocks.push({ title, lines: [...tableLines] });
-      }
-      tableLines = [];
-      beforeTable.push(line);
-    }
-  }
-  if (tableLines.length >= 3) blocks.push({ title: '', lines: tableLines });
-  return blocks;
-}
-
-function detectChartType(title, headers) {
-  const t = (title + ' ' + headers.join(' ')).toLowerCase();
-  if (t.includes('client')) return 'pie';
-  if (t.includes('categ') || t.includes('filial') || t.includes('segmento') || t.includes('ms')) return 'bar';
-  return 'bar';
-}
-
-function parseTable(tableLines) {
-  const headers = tableLines[0].split('|').map(h => h.trim()).filter(Boolean);
-  const rows = tableLines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
-  if (rows.length < 2) return null;
-  const labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').substring(0,22));
-  const numCols = [];
-  for (let i = 1; i < headers.length; i++) {
-    const vals = rows.map(r => parseNum(r[i]));
-    if (vals.some(v => v > 0)) numCols.push(i);
-  }
-  if (!numCols.length) return null;
-  // Use only first numeric column (faturamento)
-  const ci = numCols[0];
-  const data = rows.map(r => parseNum(r[ci]));
-  return { labels, headers, colLabel: headers[ci], data };
-}
-
 function fmtVal(v) {
   if (Math.abs(v) >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
   if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k';
-  return v.toFixed(0);
+  return 'R$' + v.toFixed(0);
 }
 
-function renderChart(id, tableData, chartType, title) {
+function parseNum(v) {
+  if (!v) return 0;
+  v = v.toString().replace(/R\$\s*/g,'').replace(/\./g,'').replace(',','.').trim();
+  if (v.endsWith('M')) return parseFloat(v)*1000000;
+  if (v.endsWith('k')) return parseFloat(v)*1000;
+  if (v.endsWith('%')) return parseFloat(v);
+  return parseFloat(v.replace(/[^\d.-]/g,'')) || 0;
+}
+
+function extractSections(text) {
+  // Find filial, cliente, categoria tables separately
+  const result = { filial: null, cliente: null, categoria: null };
+  const blocks = text.split(/\n(?=#{1,3} )/);
+
+  blocks.forEach(block => {
+    const lower = block.toLowerCase();
+    const lines = block.split('\n').filter(l => l.trim().startsWith('|'));
+    if (lines.length < 3) return;
+
+    const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
+    const rows = lines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
+    if (rows.length < 2) return;
+
+    // Find faturamento column
+    const fatIdx = headers.findIndex(h => h.toLowerCase().includes('fat') || h.toLowerCase().includes('acum') || h.toLowerCase().includes('total'));
+    const valIdx = fatIdx >= 0 ? fatIdx : 1;
+
+    const labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').substring(0,25));
+    const data = rows.map(r => parseNum(r[valIdx]));
+
+    const entry = { labels, data, colLabel: headers[valIdx] || 'Faturamento' };
+
+    if (lower.includes('filial') || lower.includes('ranking')) {
+      result.filial = entry;
+    } else if (lower.includes('client')) {
+      result.cliente = entry;
+    } else if (lower.includes('categ')) {
+      result.categoria = entry;
+    }
+  });
+
+  return result;
+}
+
+function renderBarChart(id, labels, data, title) {
   const el = document.getElementById(id);
   if (!el) return;
   if (charts[id]) charts[id].destroy();
 
-  const colors = [
-    '#00613a','#e8640a','#f5a623','#0066cc','#9c27b0',
-    '#00838f','#c62828','#2e7d32','#1565c0','#6a1b9a',
-    '#bf360c','#004d40'
-  ];
-
-  // Always horizontal bar so labels fit
-  const isHoriz = true;
-  // Canvas height based on number of items
-  const h = Math.max(320, tableData.labels.length * 36);
+  const h = Math.max(280, labels.length * 38);
+  el.querySelector('canvas').style.height = h + 'px';
   el.querySelector('canvas').style.maxHeight = h + 'px';
 
-  let cfg;
-  if (chartType === 'pie') {
-    cfg = {
-      type: 'doughnut',
-      data: {
-        labels: tableData.labels,
-        datasets: [{ data: tableData.data, backgroundColor: colors.slice(0, tableData.labels.length), borderWidth: 2, borderColor: '#fff' }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } },
-          title: { display: !!title, text: title, font: { size: 13, weight: 'bold' }, color: '#00613a', padding: { bottom: 10 } },
-          tooltip: {
-            callbacks: {
-              label: ctx => ' ' + ctx.label + ': ' + fmtVal(ctx.raw)
-            }
-          },
-          // Inline labels via custom plugin
-          datalabels: { display: false }
-        }
-      },
-      plugins: [{
-        id: 'pieLabels',
-        afterDatasetsDraw(chart) {
-          const { ctx, data } = chart;
-          const total = data.datasets[0].data.reduce((a,b) => a+b, 0);
-          chart.getDatasetMeta(0).data.forEach((arc, i) => {
-            const val = data.datasets[0].data[i];
-            const pct = ((val/total)*100).toFixed(1) + '%';
-            const { x, y } = arc.tooltipPosition();
-            ctx.save();
-            ctx.font = 'bold 10px Arial';
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            if ((val/total) > 0.04) ctx.fillText(pct, x, y);
-            ctx.restore();
-          });
-        }
+  const colors = [
+    '#00613a','#00874f','#1a9e60','#33b570','#4dcb80',
+    '#e8640a','#f07c2a','#f5a623','#0066cc','#2980b9',
+    '#9c27b0','#6a1b9a','#c62828','#004d40','#1565c0',
+    '#bf360c','#2e7d32'
+  ];
+
+  charts[id] = new Chart(el.querySelector('canvas'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+        borderWidth: 0,
+        borderRadius: 4
       }]
-    };
-  } else {
-    cfg = {
-      type: 'bar',
-      data: {
-        labels: tableData.labels,
-        datasets: [{
-          label: tableData.colLabel,
-          data: tableData.data,
-          backgroundColor: colors.slice(0, tableData.labels.length),
-          borderWidth: 0,
-          borderRadius: 4
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        indexAxis: 'y',
-        plugins: {
-          legend: { display: false },
-          title: { display: !!title, text: title, font: { size: 13, weight: 'bold' }, color: '#00613a', padding: { bottom: 10 } },
-          tooltip: { callbacks: { label: ctx => ' ' + fmtVal(ctx.raw) } }
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        title: {
+          display: !!title,
+          text: title,
+          font: { size: 13, weight: 'bold' },
+          color: '#00613a',
+          padding: { bottom: 12 }
         },
-        scales: {
-          x: {
-            ticks: { font: { size: 10 }, callback: v => fmtVal(v) },
-            grid: { color: '#f0f0f0' }
-          },
-          y: {
-            ticks: { font: { size: 11 }, crossAlign: 'far' }
-          }
-        }
+        tooltip: { callbacks: { label: ctx => ' ' + fmtVal(ctx.raw) } }
       },
-      plugins: [{
-        id: 'barLabels',
-        afterDatasetsDraw(chart) {
-          const { ctx, scales: { x, y } } = chart;
-          chart.getDatasetMeta(0).data.forEach((bar, i) => {
-            const val = chart.data.datasets[0].data[i];
-            const xPos = bar.x + 6;
-            const yPos = bar.y;
-            ctx.save();
-            ctx.font = 'bold 10px Arial';
-            ctx.fillStyle = '#1a2332';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(fmtVal(val), xPos, yPos);
-            ctx.restore();
-          });
+      scales: {
+        x: {
+          ticks: { font: { size: 10 }, callback: v => fmtVal(v) },
+          grid: { color: '#f0f0f0' }
+        },
+        y: {
+          ticks: { font: { size: 11 }, crossAlign: 'far' }
         }
-      }]
-    };
-  }
-  charts[id] = new Chart(el.querySelector('canvas'), cfg);
+      }
+    },
+    plugins: [{
+      id: 'valueLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+          const val = chart.data.datasets[0].data[i];
+          ctx.save();
+          ctx.font = 'bold 10px Arial';
+          ctx.fillStyle = '#1a2332';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(fmtVal(val), bar.x + 6, bar.y);
+          ctx.restore();
+        });
+      }
+    }]
+  });
 }
 
 function gerarPDF(content, msgBody) {
@@ -401,17 +351,22 @@ function addMsg(role, content) {
   if (role === 'bot') {
     bubble.innerHTML = marked.parse(content);
     body.appendChild(bubble);
-    const tables = extractTables(content);
-    tables.forEach((block, idx) => {
-      const td = parseTable(block.lines);
-      if (td && td.labels.length >= 2) {
-        const cid = 'c' + Date.now() + idx;
+    // Render one bar chart per section (filial, cliente, categoria)
+    const sections = extractSections(content);
+    const sectionDefs = [
+      { key: 'filial',    title: 'Faturamento por Filial' },
+      { key: 'cliente',   title: 'Top Clientes — Faturamento' },
+      { key: 'categoria', title: 'Top Categorias — Faturamento' }
+    ];
+    sectionDefs.forEach((def, idx) => {
+      const sec = sections[def.key];
+      if (sec && sec.labels.length >= 2) {
+        const cid = 'ch' + Date.now() + idx;
         const cw = document.createElement('div');
         cw.className = 'chart-wrap'; cw.id = cid;
         cw.innerHTML = '<canvas></canvas>';
         body.appendChild(cw);
-        const cType = detectChartType(block.title, td.headers);
-        setTimeout(() => renderChart(cid, td, cType, block.title), 150 + idx * 50);
+        setTimeout(() => renderBarChart(cid, sec.labels, sec.data, def.title), 200 + idx * 100);
       }
     });
     const actions = document.createElement('div');
