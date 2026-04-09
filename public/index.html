@@ -178,25 +178,28 @@ function parseNum(v) {
 }
 
 function unificarCelsoRamos(labels, data) {
-  // Merge Celso Ramos and Cristal Verde into one entry
   const merged = { labels: [], data: [] };
   let celsoIdx = -1;
   labels.forEach((lbl, i) => {
-    const l = lbl.toLowerCase();
-    if (l.includes('celso') || l.includes('cristal')) {
+    const l = lbl.toLowerCase().replace(/[^a-z]/g, '');
+    const isCelso = l.includes('celso') || l.includes('cristal') || l.includes('cristalverde') || l.includes('celsoramos');
+    if (isCelso) {
       if (celsoIdx === -1) {
-        merged.labels.push('Celso Ramos / Cristal Verde');
-        merged.data.push(data[i]);
+        merged.labels.push('Celso R. / Cristal V.');
+        merged.data.push(data[i] || 0);
         celsoIdx = merged.labels.length - 1;
       } else {
-        merged.data[celsoIdx] += data[i];
+        merged.data[celsoIdx] += (data[i] || 0);
       }
     } else {
       merged.labels.push(lbl);
-      merged.data.push(data[i]);
+      merged.data.push(data[i] || 0);
     }
   });
-  return merged;
+  // Sort by value descending
+  const pairs = merged.labels.map((l, i) => ({ l, d: merged.data[i] }));
+  pairs.sort((a, b) => b.d - a.d);
+  return { labels: pairs.map(p => p.l), data: pairs.map(p => p.d) };
 }
 
 function extractSections(text) {
@@ -214,26 +217,26 @@ function extractSections(text) {
       .filter(r => r.length >= 2 && !r[0].match(/^[-:]+$/));
     if (rows.length < 2) return;
 
-    // For filial: find LAST month column available (Jan < Fev < Mar < Abr), never use TOTAL
+    // For filial: find LAST month column (Jan=oldest, Abr/latest=newest), never TOTAL
     let valIdx = 1;
     if (lower.includes('filial') || lower.includes('ranking')) {
-      // Ordered from oldest to newest — pick the last one found
       const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
       let lastFound = -1;
-      for (const mes of meses) {
-        const idx = headers.findIndex(h => h.toLowerCase().replace(/[^a-z]/g,'').startsWith(mes));
-        if (idx >= 0) lastFound = idx;
-      }
+      headers.forEach((h, i) => {
+        const hc = h.toLowerCase().replace(/[^a-z]/g,'');
+        meses.forEach(mes => {
+          if (hc === mes || hc.startsWith(mes)) lastFound = i;
+        });
+      });
       if (lastFound >= 0) {
         valIdx = lastFound;
       } else {
-        // fallback: column just before TOTAL
-        const totalIdx = headers.findIndex(h => h.toLowerCase().includes('total') || h.toLowerCase().includes('acum'));
+        const totalIdx = headers.findIndex(h => /total|acum/i.test(h));
         valIdx = totalIdx > 1 ? totalIdx - 1 : headers.length - 2;
         if (valIdx < 1) valIdx = 1;
       }
     } else {
-      const fatIdx = headers.findIndex(h => h.toLowerCase().includes('fat') || h.toLowerCase().includes('acum') || h.toLowerCase().includes('total'));
+      const fatIdx = headers.findIndex(h => /fat|acum|total/i.test(h));
       valIdx = fatIdx >= 0 ? fatIdx : 1;
     }
 
