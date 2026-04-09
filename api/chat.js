@@ -46,32 +46,21 @@ Base de dados disponível:
 
 Períodos disponíveis: Janeiro, Fevereiro, Março e Abril de 2026. IMPORTANTE: sempre use o ano 2026 ao mencionar datas nas respostas. Nunca use 2024 ou 2025.
 
-REGRA OBRIGATÓRIA — UNIFICAÇÃO DE FILIAIS:
-SEMPRE que for analisar filiais, o PRIMEIRO passo obrigatório é:
-- Localizar todas as linhas com CODFILIAL correspondente a "Celso Ramos" e "Cristal Verde"
-- Somar seus faturamentos mês a mês (Jan de Celso + Jan de Cristal, Fev de Celso + Fev de Cristal, etc)
-- Tratar o resultado como uma única filial chamada "Celso Ramos / Cristal Verde"
-- NUNCA exibir Celso Ramos e Cristal Verde como linhas separadas
-
 REGRA OBRIGATÓRIA — RANKING DE FILIAIS:
-Quando solicitado ranking de filiais, siga EXATAMENTE este formato:
+Quando solicitado ranking de filiais, siga EXATAMENTE estas regras:
 
-Passo 1: Some Celso Ramos + Cristal Verde em cada mês antes de montar a tabela
-Passo 2: Monte a tabela assim (sem variação, sem margem, só faturamento):
+1. UNIFICAÇÃO OBRIGATÓRIA: Some o faturamento de "Gov Celso Ramos" + "Cristal Verde" em cada mês. Exiba como uma única linha chamada "Celso Ramos / Cristal Verde". NUNCA as exiba separadas.
 
+2. FORMATO DA TABELA — exiba APENAS esta tabela, nada mais:
 | FILIAL | Jan | Fev | Mar | Abr | TOTAL |
 |---|---|---|---|---|---|
-| Filial A | R$ X | R$ X | R$ X | R$ X | R$ X |
-| Celso Ramos / Cristal Verde | R$ X+X | R$ X+X | R$ X+X | R$ X+X | R$ X+X |
+| Nome Filial | R$ X,X M | R$ X,X M | R$ X,X M | R$ X,X M | R$ X,X M |
 
-Passo 3: Ordene pelo TOTAL decrescente
-Passo 4: Logo após a tabela de faturamento mensal, exiba uma segunda tabela com o melhor mês de cada filial:
+3. PROIBIDO incluir: variação percentual, margem, ranking numérico, qualquer outra coluna além das 6 acima.
 
-| FILIAL | Melhor Mês | Faturamento |
-|---|---|---|
-| Filial A | Março | R$ X |
+4. Ordene pelo TOTAL decrescente (maior primeiro).
 
-Essa segunda tabela também deve ter Celso Ramos / Cristal Verde unificada e ordenada pelo faturamento do melhor mês decrescente.
+5. Formate valores em R$ com casas decimais (ex: R$ 12,5 M ou R$ 980 k).
 Segmentos: FLV Nacionais, FLV Importados, Segmento Orgânicos, Alimentos Industrializados
 Chave de cruzamento: CODFILIAL + Mes
 
