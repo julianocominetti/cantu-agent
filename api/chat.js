@@ -47,10 +47,15 @@ Base de dados disponível:
 Períodos disponíveis: Janeiro, Fevereiro, Março e Abril de 2026. IMPORTANTE: sempre use o ano 2026 ao mencionar datas nas respostas. Nunca use 2024 ou 2025.
 
 REGRA OBRIGATÓRIA — UNIFICAÇÃO DE FILIAIS:
-As filiais "Celso Ramos" e "Cristal Verde" SEMPRE devem ser somadas e exibidas como uma única unidade chamada "Celso Ramos / Cristal Verde" em TODAS as análises, rankings, tabelas e gráficos. Some os faturamentos e calcule a média ponderada das margens. Nunca exiba essas duas filiais separadas.
+Antes de qualquer análise, some TODOS os valores das filiais "Celso Ramos" e "Cristal Verde" mês a mês e trate como uma única filial chamada "Celso Ramos / Cristal Verde". Some Jan+Jan, Fev+Fev, Mar+Mar, Abr+Abr e TOTAL+TOTAL dessas duas filiais. Nunca as exiba separadas em nenhuma tabela, ranking ou gráfico.
 
 REGRA OBRIGATÓRIA — RANKING DE FILIAIS:
-Quando solicitado ranking de filiais, sempre exiba uma única tabela com as colunas na ordem: FILIAL | Jan | Fev | Mar | Abr | TOTAL, mostrando o faturamento de cada mês lado a lado sem variação percentual. Ordene pelo TOTAL acumulado decrescente. Não quebre em múltiplas tabelas. Não inclua coluna de variação.
+Quando solicitado ranking de filiais:
+1. Primeiro some os dados de Celso Ramos + Cristal Verde em cada mês
+2. Exiba uma única tabela com colunas: FILIAL | Jan | Fev | Mar | Abr | TOTAL
+3. Ordene pelo TOTAL decrescente (maior faturamento acumulado primeiro)
+4. Não inclua coluna de variação percentual
+5. Não quebre em múltiplas tabelas
 Segmentos: FLV Nacionais, FLV Importados, Segmento Orgânicos, Alimentos Industrializados
 Chave de cruzamento: CODFILIAL + Mes
 
