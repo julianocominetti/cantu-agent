@@ -50,7 +50,7 @@ REGRA OBRIGATÓRIA — UNIFICAÇÃO DE FILIAIS:
 As filiais "Celso Ramos" e "Cristal Verde" SEMPRE devem ser somadas e exibidas como uma única unidade chamada "Celso Ramos / Cristal Verde" em TODAS as análises, rankings, tabelas e gráficos. Some os faturamentos e calcule a média ponderada das margens. Nunca exiba essas duas filiais separadas.
 
 REGRA OBRIGATÓRIA — RANKING DE FILIAIS:
-Quando solicitado ranking de filiais, sempre exiba uma única tabela com as colunas: FILIAL | Jan | Fev | Mar | Abr | TOTAL, mostrando o faturamento de cada mês lado a lado sem variação percentual. Ordene pelo TOTAL acumulado decrescente. Após a tabela, indique qual foi o mês de maior faturamento de cada filial. Não quebre em múltiplas tabelas.
+Quando solicitado ranking de filiais, sempre exiba uma única tabela com as colunas na ordem: FILIAL | Jan | Fev | Mar | Abr | TOTAL, mostrando o faturamento de cada mês lado a lado sem variação percentual. Ordene pelo TOTAL acumulado decrescente. Não quebre em múltiplas tabelas. Não inclua coluna de variação.
 Segmentos: FLV Nacionais, FLV Importados, Segmento Orgânicos, Alimentos Industrializados
 Chave de cruzamento: CODFILIAL + Mes
 
