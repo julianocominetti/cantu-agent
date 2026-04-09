@@ -214,15 +214,24 @@ function extractSections(text) {
       .filter(r => r.length >= 2 && !r[0].match(/^[-:]+$/));
     if (rows.length < 2) return;
 
-    // For filial table with monthly columns, prefer Abr column, else TOTAL, else first numeric
+    // For filial: find LAST month column available (Jan < Fev < Mar < Abr), never use TOTAL
     let valIdx = 1;
     if (lower.includes('filial') || lower.includes('ranking')) {
-      // Try to find Abr column first
-      const abrIdx = headers.findIndex(h => h.toLowerCase().includes('abr'));
-      const totalIdx = headers.findIndex(h => h.toLowerCase().includes('total') || h.toLowerCase().includes('acum'));
-      if (abrIdx >= 0) valIdx = abrIdx;
-      else if (totalIdx >= 0) valIdx = totalIdx;
-      else valIdx = headers.length - 1;
+      // Ordered from oldest to newest — pick the last one found
+      const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+      let lastFound = -1;
+      for (const mes of meses) {
+        const idx = headers.findIndex(h => h.toLowerCase().replace(/[^a-z]/g,'').startsWith(mes));
+        if (idx >= 0) lastFound = idx;
+      }
+      if (lastFound >= 0) {
+        valIdx = lastFound;
+      } else {
+        // fallback: column just before TOTAL
+        const totalIdx = headers.findIndex(h => h.toLowerCase().includes('total') || h.toLowerCase().includes('acum'));
+        valIdx = totalIdx > 1 ? totalIdx - 1 : headers.length - 2;
+        if (valIdx < 1) valIdx = 1;
+      }
     } else {
       const fatIdx = headers.findIndex(h => h.toLowerCase().includes('fat') || h.toLowerCase().includes('acum') || h.toLowerCase().includes('total'));
       valIdx = fatIdx >= 0 ? fatIdx : 1;
@@ -419,7 +428,7 @@ function addMsg(role, content) {
     // Render one bar chart per section (filial, cliente, categoria)
     const sections = extractSections(content);
     const sectionDefs = [
-      { key: 'filial',    title: 'Faturamento por Filial — Abril 2026' },
+      { key: 'filial',    title: 'Faturamento por Filial — Último Mês' },
       { key: 'cliente',   title: 'Top Clientes — Faturamento Acumulado' },
       { key: 'categoria', title: 'Top Categorias — Faturamento Acumulado' }
     ];
