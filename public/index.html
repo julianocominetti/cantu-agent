@@ -177,8 +177,29 @@ function parseNum(v) {
   return parseFloat(v.replace(/[^\d.-]/g,'')) || 0;
 }
 
+function unificarCelsoRamos(labels, data) {
+  // Merge Celso Ramos and Cristal Verde into one entry
+  const merged = { labels: [], data: [] };
+  let celsoIdx = -1;
+  labels.forEach((lbl, i) => {
+    const l = lbl.toLowerCase();
+    if (l.includes('celso') || l.includes('cristal')) {
+      if (celsoIdx === -1) {
+        merged.labels.push('Celso Ramos / Cristal Verde');
+        merged.data.push(data[i]);
+        celsoIdx = merged.labels.length - 1;
+      } else {
+        merged.data[celsoIdx] += data[i];
+      }
+    } else {
+      merged.labels.push(lbl);
+      merged.data.push(data[i]);
+    }
+  });
+  return merged;
+}
+
 function extractSections(text) {
-  // Find filial, cliente, categoria tables separately
   const result = { filial: null, cliente: null, categoria: null };
   const blocks = text.split(/\n(?=#{1,3} )/);
 
@@ -188,17 +209,39 @@ function extractSections(text) {
     if (lines.length < 3) return;
 
     const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
-    const rows = lines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
+    const rows = lines.slice(2)
+      .map(l => l.split('|').map(c => c.trim()).filter(Boolean))
+      .filter(r => r.length >= 2 && !r[0].match(/^[-:]+$/));
     if (rows.length < 2) return;
 
-    // Find faturamento column
-    const fatIdx = headers.findIndex(h => h.toLowerCase().includes('fat') || h.toLowerCase().includes('acum') || h.toLowerCase().includes('total'));
-    const valIdx = fatIdx >= 0 ? fatIdx : 1;
+    // For filial table with monthly columns, prefer Abr column, else TOTAL, else first numeric
+    let valIdx = 1;
+    if (lower.includes('filial') || lower.includes('ranking')) {
+      // Try to find Abr column first
+      const abrIdx = headers.findIndex(h => h.toLowerCase().includes('abr'));
+      const totalIdx = headers.findIndex(h => h.toLowerCase().includes('total') || h.toLowerCase().includes('acum'));
+      if (abrIdx >= 0) valIdx = abrIdx;
+      else if (totalIdx >= 0) valIdx = totalIdx;
+      else valIdx = headers.length - 1;
+    } else {
+      const fatIdx = headers.findIndex(h => h.toLowerCase().includes('fat') || h.toLowerCase().includes('acum') || h.toLowerCase().includes('total'));
+      valIdx = fatIdx >= 0 ? fatIdx : 1;
+    }
 
-    const labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').substring(0,25));
-    const data = rows.map(r => parseNum(r[valIdx]));
+    let labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').replace(/^\d+\.?\s*/, '').substring(0,25));
+    let data = rows.map(r => parseNum(r[valIdx]));
 
-    const entry = { labels, data, colLabel: headers[valIdx] || 'Faturamento' };
+    // Filter out rows with zero or invalid data
+    const valid = labels.map((l, i) => data[i] > 0 ? i : -1).filter(i => i >= 0);
+    labels = valid.map(i => labels[i]);
+    data = valid.map(i => data[i]);
+
+    if (labels.length < 2) return;
+
+    // Always unify Celso Ramos + Cristal Verde
+    const unified = unificarCelsoRamos(labels, data);
+
+    const entry = { labels: unified.labels, data: unified.data };
 
     if (lower.includes('filial') || lower.includes('ranking')) {
       result.filial = entry;
@@ -208,6 +251,28 @@ function extractSections(text) {
       result.categoria = entry;
     }
   });
+
+  // If only one table found, try to detect by content
+  if (!result.filial && !result.cliente && !result.categoria) {
+    const lines = text.split('\n').filter(l => l.trim().startsWith('|'));
+    if (lines.length >= 3) {
+      const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
+      const rows = lines.slice(2).map(l => l.split('|').map(c => c.trim()).filter(Boolean)).filter(r => r.length >= 2);
+      const valIdx = headers.length > 2 ? headers.length - 1 : 1;
+      let labels = rows.map(r => (r[0]||'').replace(/\*\*/g,'').replace(/^\d+\.?\s*/, '').substring(0,25));
+      let data = rows.map(r => parseNum(r[valIdx]));
+      const valid = labels.map((l, i) => data[i] > 0 ? i : -1).filter(i => i >= 0);
+      labels = valid.map(i => labels[i]);
+      data = valid.map(i => data[i]);
+      if (labels.length >= 2) {
+        const unified = unificarCelsoRamos(labels, data);
+        const lower = text.toLowerCase();
+        if (lower.includes('client')) result.cliente = unified;
+        else if (lower.includes('categ')) result.categoria = unified;
+        else result.filial = unified;
+      }
+    }
+  }
 
   return result;
 }
@@ -354,9 +419,9 @@ function addMsg(role, content) {
     // Render one bar chart per section (filial, cliente, categoria)
     const sections = extractSections(content);
     const sectionDefs = [
-      { key: 'filial',    title: 'Faturamento por Filial' },
-      { key: 'cliente',   title: 'Top Clientes — Faturamento' },
-      { key: 'categoria', title: 'Top Categorias — Faturamento' }
+      { key: 'filial',    title: 'Faturamento por Filial — Abril 2026' },
+      { key: 'cliente',   title: 'Top Clientes — Faturamento Acumulado' },
+      { key: 'categoria', title: 'Top Categorias — Faturamento Acumulado' }
     ];
     sectionDefs.forEach((def, idx) => {
       const sec = sections[def.key];
