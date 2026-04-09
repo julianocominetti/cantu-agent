@@ -49,7 +49,8 @@ ESTRUTURA DOS DADOS DISPONÍVEIS:
    Colunas: CODFILIAL | CATEGORIA | CATEGORIA2 | SEGMENTO | Jan_FAT | Fev_FAT | Mar_FAT | Abr_FAT | TOTAL_FAT | MARGEM_MEDIA
 
 4. cliente.txt — Top 12 clientes por filial
-   Colunas: CODFILIAL | CLIENTE | SEGMENTO | Jan_FAT | Fev_FAT | Mar_FAT | Abr_FAT | TOTAL_FAT | MARGEM_MEDIA
+   Colunas: CODFILIAL | CLIENTE | CODVENDEDOR | SEGMENTO | Jan_FAT | Fev_FAT | Mar_FAT | Abr_FAT | TOTAL_FAT | MARGEM_MEDIA
+   Use CODVENDEDOR para cruzar com vendedor.txt e identificar qual vendedor atende cada cliente.
 
 5. vendedor.txt — Faturamento e meta por vendedor
    Colunas: CODFILIAL | CODVENDEDOR | VENDEDOR | Jan_FAT | Jan_META | Fev_FAT | Fev_META | ... | TOTAL_FAT | TOTAL_META
